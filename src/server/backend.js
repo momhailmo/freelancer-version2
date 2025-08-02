@@ -147,7 +147,9 @@ async function startServer() {
     app.use('/api', authRoutesSolana);
 
     const protectedRoutes = CreateProtectedRoutes(effectiveRedisClient);
+    const transactionVerificationRoutes = createTransactionVerificationRoutes();
     app.use('/api', protectedRoutes);
+    app.use('/api/transactions', transactionVerificationRoutes);
 
     // Serve static files from the dist folder
     const distPath = path.resolve(process.cwd(), 'dist');
