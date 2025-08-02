@@ -49,6 +49,7 @@ const BackgroundAndButtons = computed(() => defineAsyncComponent(() => import(`.
 
 import { useGlobalStore } from "@/client/stores/global";
 import { storeToRefs } from "pinia";
+import { initializeAutoConnect } from "./scripts/autoWalletConnect.js";
 
 ////////////////////////////////////////////////////////////////////////////////////
 
