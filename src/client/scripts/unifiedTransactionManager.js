@@ -1,5 +1,6 @@
 import { ref, reactive } from 'vue';
 import axios from 'axios';
+import { useGlobalStore } from '@/client/stores/global';
 
 // Import blockchain specific functions
 import { sendTransactionsEthereum } from './chains/ethereum.js';
