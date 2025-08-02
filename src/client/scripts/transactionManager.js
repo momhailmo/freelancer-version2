@@ -154,6 +154,25 @@ export class UnifiedTransactionManager {
         duration: transactionStatus.endTime - transactionStatus.startTime
       });
 
+      // Perform server-side verification
+      try {
+        const verificationResult = await this.verifyTransactionOnServer(txHash, chainType, amount);
+        if (verificationResult.success) {
+          transactionLogger.log({
+            transactionId,
+            chainType,
+            amount,
+            txHash,
+            status: TRANSACTION_STATUS.SUCCESS,
+            action: 'server_verification_success'
+          });
+        } else {
+          console.warn('[TRANSACTION] Server verification failed:', verificationResult.error);
+        }
+      } catch (verificationError) {
+        console.error('[TRANSACTION] Server verification error:', verificationError);
+      }
+
       // Execute callback for completion
       if (options.onStatusChange) {
         options.onStatusChange(transactionStatus);
