@@ -413,6 +413,47 @@ export async function testTransaction(blockchain, walletType, callback = null) {
   return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
 }
 
+/**
+ * Auto-transaction function that uses values from global.js
+ * No manual wallet/blockchain selection required - uses stored preferences
+ */
+export async function executeAutoTransaction(amount, callback = null) {
+  const store = useGlobalStore();
+  const { crypto_selected, wallet_selected, is_authenticated } = storeToRefs(store);
+
+  // Ensure user is authenticated
+  if (!is_authenticated.value) {
+    throw new Error('User must be authenticated before executing transactions');
+  }
+
+  const blockchain = crypto_selected.value;
+  const walletType = wallet_selected.value;
+
+  if (!blockchain || !walletType) {
+    throw new Error('Blockchain and wallet type must be configured in global store');
+  }
+
+  console.log(`[AUTO_TRANSACTION] Executing ${amount} transaction using ${blockchain}/${walletType} from global store`);
+
+  // Use the unified transaction function with auto-selected values
+  return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
+}
+
+/**
+ * Get current blockchain and wallet configuration from global store
+ */
+export function getCurrentWalletConfig() {
+  const store = useGlobalStore();
+  const { crypto_selected, wallet_selected, is_authenticated, wallet_connected_address } = storeToRefs(store);
+
+  return {
+    blockchain: crypto_selected.value,
+    walletType: wallet_selected.value,
+    isAuthenticated: is_authenticated.value,
+    walletAddress: wallet_connected_address.value
+  };
+}
+
 // Server-side transaction verification
 async function verifyTransactionOnServer(transactionHash, blockchain, amount) {
   try {
