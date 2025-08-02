@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { useGlobalStore } from '@/client/stores/global';
 
 // Import wallet addresses from env
 import {
