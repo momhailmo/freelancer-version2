@@ -75,7 +75,7 @@
             Processing Transaction...
           </span>
           <span v-else>
-            Send {{ amount || 0 }} {{ getBlockchainInfo(selectedBlockchain)?.symbol }}
+            Send {{ amount || 0 }} {{ getBlockchainInfo(walletConfig.blockchain)?.symbol }}
           </span>
         </button>
 
