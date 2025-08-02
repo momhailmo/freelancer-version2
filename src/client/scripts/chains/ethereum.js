@@ -275,4 +275,5 @@ export {
   sendTransactionsEthereum,
   disconnectWalletEthereum,
   getProfileEthereum,
+  refreshJwtTokenEthereum,
 };

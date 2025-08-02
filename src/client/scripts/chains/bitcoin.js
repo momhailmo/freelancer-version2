@@ -280,6 +280,7 @@ export {
   verifyBitcoinSignature,
   initializeTokensBitcoin,
   sendTransactionsBitcoin,
+  refreshJwtTokenBitcoin,
 };
 
 ////////////////////////////////////////////////////////////////////////
