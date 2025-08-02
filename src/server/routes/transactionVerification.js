@@ -523,6 +523,96 @@ async function logCallbackExecution(userAddress, transactionHash, status, error 
   console.log(`[TX_CALLBACK] Logged callback execution: ${status} for transaction ${transactionHash}`);
 }
 
+/**
+ * Webhook endpoint for external systems to notify about completed transactions
+ * This can be called by blockchain monitoring services or payment processors
+ */
+router.post('/webhook/transaction-completed', verificationLimiter, async (req, res) => {
+  try {
+    const { transactionHash, blockchain, amount, walletAddress, apiKey } = req.body;
+
+    // Validate webhook API key (in production, this should be a secure key)
+    if (apiKey !== process.env.WEBHOOK_API_KEY) {
+      return res.status(401).json({ error: 'Invalid API key' });
+    }
+
+    // Validate required fields
+    if (!transactionHash || !blockchain || !amount || !walletAddress) {
+      return res.status(400).json({
+        error: 'Missing required fields: transactionHash, blockchain, amount, walletAddress'
+      });
+    }
+
+    console.log(`[TX_WEBHOOK] Received transaction notification: ${transactionHash} for ${walletAddress}`);
+
+    // Check if transaction already processed
+    const verificationKey = `tx_verify_${transactionHash}`;
+    const existingVerification = await redisClient.get(verificationKey);
+
+    if (existingVerification) {
+      const result = JSON.parse(existingVerification);
+      return res.json({
+        success: true,
+        message: 'Transaction already processed',
+        alreadyProcessed: true,
+        timestamp: result.timestamp
+      });
+    }
+
+    // Perform blockchain verification
+    let verificationResult;
+    try {
+      verificationResult = await verifyTransactionOnBlockchain(blockchain, transactionHash, amount, walletAddress);
+    } catch (error) {
+      console.error(`[TX_WEBHOOK] Verification failed for ${blockchain} transaction ${transactionHash}:`, error);
+      verificationResult = { success: false, error: error.message };
+    }
+
+    // Store verification result
+    const verificationData = {
+      success: verificationResult.success,
+      transactionHash,
+      blockchain,
+      amount,
+      walletAddress,
+      timestamp: new Date().toISOString(),
+      source: 'webhook',
+      error: verificationResult.error || null,
+      blockNumber: verificationResult.blockNumber || null,
+      confirmations: verificationResult.confirmations || null
+    };
+
+    await redisClient.setEx(verificationKey, 24 * 60 * 60, JSON.stringify(verificationData));
+
+    if (verificationResult.success) {
+      // Log successful transaction
+      await logSuccessfulTransaction(walletAddress, transactionHash, blockchain, amount);
+
+      // Trigger post-transaction callbacks
+      await handleSuccessfulTransaction(walletAddress, blockchain, amount, transactionHash);
+
+      console.log(`[TX_WEBHOOK] Successfully processed webhook transaction ${transactionHash}`);
+    }
+
+    res.json({
+      success: verificationResult.success,
+      message: verificationResult.success ? 'Transaction processed successfully' : 'Transaction verification failed',
+      transactionHash,
+      blockchain,
+      amount,
+      walletAddress,
+      timestamp: verificationData.timestamp,
+      error: verificationResult.error
+    });
+
+  } catch (error) {
+    console.error('[TX_WEBHOOK] Error processing webhook:', error);
+    res.status(500).json({
+      error: 'Internal server error processing webhook'
+    });
+  }
+});
+
 export default function createTransactionVerificationRoutes() {
   return router;
 }
