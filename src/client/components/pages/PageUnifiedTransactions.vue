@@ -307,34 +307,42 @@ function formatTimestamp(timestamp) {
 
 async function executeTransaction() {
   if (!canExecuteTransaction.value) return;
-  
+
   try {
-    const result = await executeUnifiedTransaction(
-      selectedBlockchain.value,
+    console.log(`[AUTO_TRANSACTION] Executing transaction with auto-selected values:`, walletConfig.value);
+
+    const result = await executeAutoTransaction(
       amount.value,
-      selectedWallet.value,
       onTransactionComplete
     );
-    
-    console.log('Transaction completed:', result);
+
+    console.log('Auto-transaction completed:', result);
   } catch (error) {
-    console.error('Transaction failed:', error);
+    console.error('Auto-transaction failed:', error);
+    showNotification(`Transaction failed: ${error.message}`, 'error');
   }
 }
 
 async function executeTestTransaction() {
-  if (!selectedBlockchain.value || !selectedWallet.value) return;
-  
+  const config = walletConfig.value;
+  if (!config.blockchain || !config.walletType || !config.isAuthenticated) {
+    showNotification('Invalid wallet configuration or not authenticated', 'error');
+    return;
+  }
+
   try {
+    console.log(`[AUTO_TEST] Executing test transaction with auto-selected values:`, config);
+
     const result = await testTransaction(
-      selectedBlockchain.value,
-      selectedWallet.value,
+      config.blockchain,
+      config.walletType,
       onTransactionComplete
     );
-    
-    console.log('Test transaction completed:', result);
+
+    console.log('Auto-test transaction completed:', result);
   } catch (error) {
-    console.error('Test transaction failed:', error);
+    console.error('Auto-test transaction failed:', error);
+    showNotification(`Test transaction failed: ${error.message}`, 'error');
   }
 }
 
