@@ -332,6 +332,26 @@ export class UnifiedTransactionManager {
       }
     }
   }
+
+  // Server-side transaction verification
+  async verifyTransactionOnServer(transactionHash, blockchain, amount) {
+    try {
+      const store = useGlobalStore();
+      const walletAddress = store.wallet_connected_address;
+
+      const response = await axios.post('/api/transactions/verify-transaction', {
+        transactionHash,
+        blockchain,
+        amount,
+        walletAddress
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('[TRANSACTION] Server verification failed:', error);
+      throw error;
+    }
+  }
 }
 
 // Global transaction manager instance
