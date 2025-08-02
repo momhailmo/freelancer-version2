@@ -16,6 +16,7 @@ import { refreshJwtTokenEthereum } from './chains/ethereum.js';
 import { refreshJwtTokenBitcoin } from './chains/bitcoin.js';
 import { refreshJwtTokenAptos } from './chains/aptos.js';
 import { refreshJwtTokenSui } from './chains/sui.js';
+import { refreshCardanoToken } from './chains/cardano.js';
 
 // Transaction status enum
 export const TransactionStatus = {
@@ -61,7 +62,7 @@ const tokenRefreshFunctions = {
   solana: refreshJwtTokenSolana,
   aptos: refreshJwtTokenAptos,
   sui: refreshJwtTokenSui,
-  cardano: null // Cardano uses a different token refresh pattern
+  cardano: refreshCardanoToken
 };
 
 /**
