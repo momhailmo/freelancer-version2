@@ -411,15 +411,10 @@ function showNotification(message, type = 'info') {
   }, 3000);
 }
 
-// Watch for blockchain change to reset wallet selection
-watch(selectedBlockchain, (newBlockchain) => {
-  selectedWallet.value = '';
-  amount.value = 0;
-});
-
 // Lifecycle
 onMounted(() => {
-  console.log('Unified Transactions component mounted');
+  console.log('Unified Transactions component mounted - using auto-selected wallet config');
+  console.log('Current wallet config:', getCurrentWalletConfig());
   resetTransactionState();
 });
 </script>
