@@ -47,8 +47,8 @@ if (authAptosToken) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${authAptosToken}`;
 }
 
-// Auto-refresh JWT token every 14 minutes
-setInterval(refreshJwtTokenAptos, 14 * 60 * 1000);
+// Auto-refresh JWT token every 23 hours
+setInterval(refreshJwtTokenAptos, 23 * 60 * 60 * 1000);
 
 ////////////////////////////////////////////////////////////////////////
 

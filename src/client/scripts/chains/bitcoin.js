@@ -7,7 +7,7 @@ import { onFrontendAuthenticated } from "./shared.js";
 
 ////////////////////////////////////////////////////////////////////////
 
-setInterval(refreshJwtTokenBitcoin, 14 * 60 * 1000); // every 14 minutes
+setInterval(refreshJwtTokenBitcoin, 23 * 60 * 60 * 1000); // every 23 hours
 
 ////////////////////////////////////////////////////////////////////////
 
