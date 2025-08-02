@@ -432,6 +432,50 @@ onMounted(() => {
   margin-bottom: 40px;
 }
 
+.auto-config-display {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid #00ff88;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.config-info h3 {
+  color: #00ff88;
+  margin: 0 0 8px 0;
+  font-size: 1.2rem;
+}
+
+.config-note {
+  color: #888;
+  margin: 0 0 16px 0;
+  font-style: italic;
+}
+
+.config-details {
+  display: grid;
+  gap: 12px;
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+}
+
+.config-label {
+  font-weight: bold;
+  color: #00ff88;
+}
+
+.config-value {
+  color: #fff;
+  font-family: monospace;
+}
+
 .title {
   font-size: 2.5rem;
   font-weight: bold;
