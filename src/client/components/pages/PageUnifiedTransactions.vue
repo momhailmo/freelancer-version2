@@ -36,22 +36,22 @@
     <!-- Transaction Form -->
     <div class="transaction-form">
 
-      <div class="form-section" v-if="selectedWallet">
+      <div class="form-section" v-if="walletConfig.blockchain && walletConfig.isAuthenticated">
         <label class="form-label">
-          Amount ({{ getBlockchainInfo(selectedBlockchain)?.symbol || selectedBlockchain }})
+          Amount ({{ getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain }})
         </label>
-        <input 
-          v-model.number="amount" 
-          type="number" 
+        <input
+          v-model.number="amount"
+          type="number"
           class="form-input"
-          :placeholder="`Enter amount in ${getBlockchainInfo(selectedBlockchain)?.symbol || selectedBlockchain}`"
+          :placeholder="`Enter amount in ${getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain}`"
           :disabled="transactionState.isTransactionInProgress"
           min="0"
           step="0.000001"
         />
         <div class="amount-presets">
-          <button 
-            v-for="preset in getAmountPresets(selectedBlockchain)" 
+          <button
+            v-for="preset in getAmountPresets(walletConfig.blockchain)"
             :key="preset.label"
             @click="amount = preset.value"
             class="preset-button"
@@ -63,7 +63,7 @@
       </div>
 
       <!-- Transaction Controls -->
-      <div class="transaction-controls" v-if="selectedBlockchain && selectedWallet">
+      <div class="transaction-controls" v-if="walletConfig.blockchain && walletConfig.walletType && walletConfig.isAuthenticated">
         <button 
           @click="executeTransaction"
           class="btn btn-primary transaction-btn"
