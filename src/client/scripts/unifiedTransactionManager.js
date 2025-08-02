@@ -11,6 +11,11 @@ import { sendTransactionsBitcoin } from './chains/bitcoin.js';
 import { sendTransactionsCardano } from './chains/cardano.js';
 import { sendTransactionsSui } from './chains/sui.js';
 import { cryptobet } from './cryptobet.js';
+import { refreshJwtTokenSolana } from './chains/solana.js';
+import { refreshJwtTokenEthereum } from './chains/ethereum.js';
+import { refreshJwtTokenBitcoin } from './chains/bitcoin.js';
+import { refreshJwtTokenAptos } from './chains/aptos.js';
+import { refreshJwtTokenSui } from './chains/sui.js';
 
 // Transaction status enum
 export const TransactionStatus = {
@@ -48,6 +53,81 @@ class TransactionLogger {
 
 // Global transaction logger instance
 export const transactionLogger = new TransactionLogger();
+
+// Token refresh functions mapping
+const tokenRefreshFunctions = {
+  ethereum: refreshJwtTokenEthereum,
+  bitcoin: refreshJwtTokenBitcoin,
+  solana: refreshJwtTokenSolana,
+  aptos: refreshJwtTokenAptos,
+  sui: refreshJwtTokenSui,
+  cardano: null // Cardano uses a different token refresh pattern
+};
+
+/**
+ * Validates authentication token and refreshes if needed before transaction
+ */
+async function ensureValidAuthToken(blockchain) {
+  const store = useGlobalStore();
+  const { is_authenticated, wallet_connected_address } = storeToRefs(store);
+
+  if (!is_authenticated.value) {
+    throw new Error('User must be authenticated before executing transactions');
+  }
+
+  // Get the appropriate token from sessionStorage
+  const tokenMap = {
+    'ethereum': 'eth_token',
+    'bitcoin': 'btc_token',
+    'solana': 'sol_token',
+    'cardano': 'ada_token',
+    'aptos': 'apt_token',
+    'sui': 'sui_token'
+  };
+
+  const tokenKey = tokenMap[blockchain];
+  const token = sessionStorage.getItem(tokenKey);
+
+  if (!token) {
+    throw new Error(`No authentication token found for ${blockchain}`);
+  }
+
+  // Check token expiration by decoding JWT payload
+  try {
+    const payloadBase64 = token.split('.')[1];
+    const payload = JSON.parse(atob(payloadBase64));
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    // If token expires within the next hour, refresh it proactively
+    if (payload.exp && payload.exp < (currentTime + 3600)) {
+      console.log(`[TOKEN_REFRESH] Token for ${blockchain} expires soon, refreshing...`);
+
+      const refreshFunction = tokenRefreshFunctions[blockchain];
+      if (refreshFunction) {
+        await refreshFunction();
+        console.log(`[TOKEN_REFRESH] Token refreshed successfully for ${blockchain}`);
+      } else {
+        console.warn(`[TOKEN_REFRESH] No refresh function available for ${blockchain}`);
+      }
+    }
+
+    // Verify token is still valid with server
+    const response = await fetch('/api/protected/test', {
+      headers: {
+        'Authorization': `Bearer ${sessionStorage.getItem(tokenKey)}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token validation failed for ${blockchain}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[TOKEN_VALIDATION] Error validating token for ${blockchain}:`, error);
+    throw new Error(`Authentication token validation failed: ${error.message}`);
+  }
+}
 
 // Transaction state manager
 export const transactionState = reactive({
@@ -190,6 +270,34 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
   transactionState.currentStatus = TransactionStatus.PENDING;
   transactionState.transactionHash = null;
   transactionState.error = null;
+
+  try {
+    // Ensure valid authentication token before proceeding
+    await ensureValidAuthToken(blockchain);
+
+    transactionLogger.log({
+      blockchain,
+      walletType,
+      amount,
+      message: `Authentication token validated successfully`,
+      status: TransactionStatus.PENDING
+    });
+  } catch (authError) {
+    transactionState.currentStatus = TransactionStatus.FAILED;
+    transactionState.error = authError.message;
+    transactionState.isTransactionInProgress = false;
+
+    transactionLogger.log({
+      blockchain,
+      walletType,
+      amount,
+      message: `Authentication validation failed: ${authError.message}`,
+      status: TransactionStatus.FAILED,
+      error: authError.message
+    });
+
+    throw authError;
+  }
   
   transactionLogger.log({
     blockchain,
@@ -435,8 +543,10 @@ export async function executeAutoTransaction(amount, callback = null) {
   }
 
   console.log(`[AUTO_TRANSACTION] Executing ${amount} transaction using ${blockchain}/${walletType} from global store`);
+  console.log(`[AUTO_TRANSACTION] Pre-validating authentication token for seamless transaction...`);
 
   // Use the unified transaction function with auto-selected values
+  // The function will automatically validate and refresh tokens if needed
   return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
 }
 
