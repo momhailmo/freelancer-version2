@@ -65,16 +65,16 @@ export async function autoConnectWallet() {
  * Checks if there's a stored session token for the current blockchain selection
  * and attempts to restore the session
  */
-export function checkExistingSession() {
+export async function checkExistingSession() {
   const store = useGlobalStore();
-  const { crypto_selected } = storeToRefs(store);
+  const { crypto_selected, wallet_selected } = storeToRefs(store);
 
   const cryptoType = crypto_selected.value;
-  
+
   // Check for existing tokens in sessionStorage
   const tokenMap = {
     'ethereum': 'eth_token',
-    'bitcoin': 'btc_token', 
+    'bitcoin': 'btc_token',
     'solana': 'sol_token',
     'cardano': 'ada_token',
     'aptos': 'apt_token',
@@ -82,10 +82,53 @@ export function checkExistingSession() {
   };
 
   const tokenKey = tokenMap[cryptoType];
-  if (tokenKey && sessionStorage.getItem(tokenKey)) {
+  const token = sessionStorage.getItem(tokenKey);
+
+  if (token) {
     console.log(`[AUTO_CONNECT] Found existing session for ${cryptoType}`);
-    store.is_authenticated = true;
-    return true;
+
+    try {
+      // Verify token is still valid by making a test request
+      const response = await fetch('/api/protected/test', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        // Token is valid, restore full authentication state
+        store.is_authenticated = true;
+
+        // Try to get wallet address from token payload (decode JWT)
+        const payloadBase64 = token.split('.')[1];
+        if (payloadBase64) {
+          const payload = JSON.parse(atob(payloadBase64));
+          if (payload.address) {
+            store.wallet_connected_address = payload.address;
+            console.log(`[AUTO_CONNECT] Restored wallet address: ${payload.address}`);
+          }
+        }
+
+        // Set axios authorization header for future requests
+        if (window.axios) {
+          window.axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+
+        return true;
+      } else {
+        // Token is invalid/expired, clear it
+        console.log(`[AUTO_CONNECT] Token expired for ${cryptoType}, clearing session`);
+        sessionStorage.removeItem(tokenKey);
+        const refreshTokenKey = tokenKey.replace('_token', '_refresh_token');
+        sessionStorage.removeItem(refreshTokenKey);
+      }
+    } catch (error) {
+      console.error(`[AUTO_CONNECT] Error verifying session for ${cryptoType}:`, error);
+      // Clear potentially corrupted session
+      sessionStorage.removeItem(tokenKey);
+      const refreshTokenKey = tokenKey.replace('_token', '_refresh_token');
+      sessionStorage.removeItem(refreshTokenKey);
+    }
   }
 
   return false;
@@ -96,9 +139,9 @@ export function checkExistingSession() {
  */
 export async function initializeAutoConnect() {
   console.log('[AUTO_CONNECT] Initializing auto-connect...');
-  
+
   // First check if there's an existing session
-  if (checkExistingSession()) {
+  if (await checkExistingSession()) {
     return;
   }
 
