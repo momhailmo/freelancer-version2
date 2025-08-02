@@ -60,9 +60,10 @@ import { initializeAutoConnect } from "./scripts/autoWalletConnect.js";
   };
 
 onMounted(() => {
-  
-  nextTick(() => {
 
+  nextTick(async () => {
+    // Initialize auto-connect instead of showing wallet selection
+    await initializeAutoConnect();
   });
 
   onBeforeUnmount(() => {
