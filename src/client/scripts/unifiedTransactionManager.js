@@ -246,6 +246,25 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
       status: TransactionStatus.SUCCESS
     });
 
+    // Perform server-side verification
+    try {
+      const verificationResult = await verifyTransactionOnServer(transactionHash, blockchain, amount);
+      if (verificationResult.success) {
+        transactionLogger.log({
+          blockchain,
+          walletType,
+          amount,
+          transactionHash,
+          message: `Server verification successful`,
+          status: TransactionStatus.SUCCESS
+        });
+      } else {
+        console.warn('[UNIFIED_TRANSACTION] Server verification failed:', verificationResult.error);
+      }
+    } catch (verificationError) {
+      console.error('[UNIFIED_TRANSACTION] Server verification error:', verificationError);
+    }
+
     // Execute callback if provided
     if (callback && typeof callback === 'function') {
       try {
