@@ -264,34 +264,178 @@ async function logSuccessfulTransaction(userAddress, transactionHash, blockchain
 
 /**
  * Handle post-transaction actions after successful verification
+ * This is the main server-side callback triggered when a transaction is completed
  */
 async function handleSuccessfulTransaction(userAddress, blockchain, amount, transactionHash) {
-  // This is where you would implement any post-transaction logic such as:
-  // - Updating user's in-game balance
-  // - Sending notifications
-  // - Triggering rewards or bonuses
-  // - Updating leaderboards
-  // - etc.
-  
-  console.log(`[TX_VERIFY] Processing successful transaction for ${userAddress}: ${amount} ${blockchain}`);
-  
-  // Example: Store successful transaction for user's transaction history
+  console.log(`[TX_CALLBACK] Processing successful transaction for user ${userAddress}: ${amount} ${blockchain}`);
+
+  try {
+    // 1. Store successful transaction for user's transaction history
+    await addToUserTransactionHistory(userAddress, {
+      transactionHash,
+      blockchain,
+      amount,
+      timestamp: new Date().toISOString(),
+      status: 'verified'
+    });
+
+    // 2. Update user's balance/credits (placeholder for game logic)
+    await updateUserBalance(userAddress, blockchain, amount, transactionHash);
+
+    // 3. Trigger user notifications
+    await sendUserNotification(userAddress, {
+      type: 'transaction_success',
+      blockchain,
+      amount,
+      transactionHash
+    });
+
+    // 4. Update user statistics and achievements
+    await updateUserStats(userAddress, blockchain, amount);
+
+    // 5. Log the callback execution for audit
+    await logCallbackExecution(userAddress, transactionHash, 'success');
+
+    console.log(`[TX_CALLBACK] Successfully processed transaction ${transactionHash} for user ${userAddress}`);
+
+  } catch (error) {
+    console.error(`[TX_CALLBACK] Error processing transaction ${transactionHash} for user ${userAddress}:`, error);
+    await logCallbackExecution(userAddress, transactionHash, 'error', error.message);
+  }
+}
+
+/**
+ * Add transaction to user's history
+ */
+async function addToUserTransactionHistory(userAddress, transactionEntry) {
   const historyKey = `tx_history_${userAddress}`;
-  const historyEntry = {
-    transactionHash,
-    blockchain,
-    amount,
-    timestamp: new Date().toISOString(),
-    status: 'verified'
-  };
-  
-  // Add to user's transaction history (keep last 100 transactions)
+
+  // Get existing history
   const existingHistory = await redisClient.get(historyKey);
   let history = existingHistory ? JSON.parse(existingHistory) : [];
-  history.unshift(historyEntry);
-  history = history.slice(0, 100); // Keep only last 100 transactions
-  
+
+  // Add new transaction to the beginning
+  history.unshift(transactionEntry);
+
+  // Keep only last 100 transactions
+  history = history.slice(0, 100);
+
+  // Store back to Redis (30 days expiration)
   await redisClient.setEx(historyKey, 30 * 24 * 60 * 60, JSON.stringify(history));
+
+  console.log(`[TX_CALLBACK] Added transaction to history for user ${userAddress}`);
+}
+
+/**
+ * Update user's balance/credits after successful transaction
+ */
+async function updateUserBalance(userAddress, blockchain, amount, transactionHash) {
+  const balanceKey = `user_balance_${userAddress}`;
+
+  // Get current balance
+  const currentBalanceData = await redisClient.get(balanceKey);
+  let balanceData = currentBalanceData ? JSON.parse(currentBalanceData) : {};
+
+  // Initialize blockchain balance if not exists
+  if (!balanceData[blockchain]) {
+    balanceData[blockchain] = { total: 0, transactions: [] };
+  }
+
+  // Add to balance
+  balanceData[blockchain].total += parseFloat(amount);
+  balanceData[blockchain].transactions.push({
+    transactionHash,
+    amount: parseFloat(amount),
+    timestamp: new Date().toISOString()
+  });
+
+  // Keep only last 50 transactions per blockchain
+  balanceData[blockchain].transactions = balanceData[blockchain].transactions.slice(-50);
+
+  // Store updated balance
+  await redisClient.setEx(balanceKey, 30 * 24 * 60 * 60, JSON.stringify(balanceData));
+
+  console.log(`[TX_CALLBACK] Updated balance for user ${userAddress}: +${amount} ${blockchain}`);
+}
+
+/**
+ * Send notification to user about successful transaction
+ */
+async function sendUserNotification(userAddress, notificationData) {
+  const notificationKey = `user_notifications_${userAddress}`;
+
+  const notification = {
+    id: `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    ...notificationData,
+    timestamp: new Date().toISOString(),
+    read: false
+  };
+
+  // Get existing notifications
+  const existingNotifications = await redisClient.get(notificationKey);
+  let notifications = existingNotifications ? JSON.parse(existingNotifications) : [];
+
+  // Add new notification
+  notifications.unshift(notification);
+
+  // Keep only last 20 notifications
+  notifications = notifications.slice(0, 20);
+
+  // Store notifications (7 days expiration)
+  await redisClient.setEx(notificationKey, 7 * 24 * 60 * 60, JSON.stringify(notifications));
+
+  console.log(`[TX_CALLBACK] Sent notification to user ${userAddress}: ${notificationData.type}`);
+}
+
+/**
+ * Update user statistics after successful transaction
+ */
+async function updateUserStats(userAddress, blockchain, amount) {
+  const statsKey = `user_stats_${userAddress}`;
+
+  // Get current stats
+  const currentStats = await redisClient.get(statsKey);
+  let stats = currentStats ? JSON.parse(currentStats) : {
+    totalTransactions: 0,
+    totalAmount: {},
+    firstTransaction: new Date().toISOString(),
+    lastTransaction: null
+  };
+
+  // Update stats
+  stats.totalTransactions += 1;
+  stats.lastTransaction = new Date().toISOString();
+
+  if (!stats.totalAmount[blockchain]) {
+    stats.totalAmount[blockchain] = 0;
+  }
+  stats.totalAmount[blockchain] += parseFloat(amount);
+
+  // Store updated stats (permanent with 1 year expiration)
+  await redisClient.setEx(statsKey, 365 * 24 * 60 * 60, JSON.stringify(stats));
+
+  console.log(`[TX_CALLBACK] Updated stats for user ${userAddress}: ${stats.totalTransactions} total transactions`);
+}
+
+/**
+ * Log callback execution for audit purposes
+ */
+async function logCallbackExecution(userAddress, transactionHash, status, error = null) {
+  const logKey = `callback_log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const logData = {
+    userAddress,
+    transactionHash,
+    status,
+    error,
+    timestamp: new Date().toISOString(),
+    callbackId: logKey
+  };
+
+  // Store callback execution log (30 days)
+  await redisClient.setEx(logKey, 30 * 24 * 60 * 60, JSON.stringify(logData));
+
+  console.log(`[TX_CALLBACK] Logged callback execution: ${status} for transaction ${transactionHash}`);
 }
 
 export default function createTransactionVerificationRoutes() {
