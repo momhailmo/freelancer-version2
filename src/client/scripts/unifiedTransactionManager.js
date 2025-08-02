@@ -403,3 +403,23 @@ export async function testTransaction(blockchain, walletType, callback = null) {
 
   return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
 }
+
+// Server-side transaction verification
+async function verifyTransactionOnServer(transactionHash, blockchain, amount) {
+  try {
+    const store = useGlobalStore();
+    const walletAddress = store.wallet_connected_address;
+
+    const response = await axios.post('/api/transactions/verify-transaction', {
+      transactionHash,
+      blockchain,
+      amount,
+      walletAddress
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('[UNIFIED_TRANSACTION] Server verification failed:', error);
+    throw error;
+  }
+}
