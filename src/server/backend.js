@@ -80,8 +80,8 @@ async function startServer() {
     //     next();
     // });
     // d:/Work/2025/CyberBet.Games/source/database-update/database_update/databases/mongodb/data
-    // Check if Redis should be used in development
-    const useRedis = process.env.NODE_ENV === 'production' || process.env.USE_REDIS === 'true';
+    // Redis is required for both development and production
+    const useRedis = true;
 
     let redisConnected = false;
     let effectiveRedisClient;
