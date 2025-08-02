@@ -246,6 +246,11 @@ function formatWalletName(wallet) {
   return wallet.charAt(0).toUpperCase() + wallet.slice(1);
 }
 
+function formatAddress(address) {
+  if (!address) return 'Not connected';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 function getAmountPresets(blockchain) {
   const presets = {
     ethereum: [
