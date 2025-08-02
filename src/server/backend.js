@@ -82,8 +82,7 @@ async function startServer() {
     // });
     // d:/Work/2025/CyberBet.Games/source/database-update/database_update/databases/mongodb/data
     // Redis is required for both development and production
-    // Temporarily disabled to avoid runtime errors
-    const useRedis = false;
+    const useRedis = true;
 
     let redisConnected = false;
     let effectiveRedisClient;
