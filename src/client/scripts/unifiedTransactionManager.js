@@ -1,6 +1,7 @@
 import { ref, reactive } from 'vue';
 import axios from 'axios';
 import { useGlobalStore } from '@/client/stores/global';
+import { storeToRefs } from 'pinia';
 
 // Import blockchain specific functions
 import { sendTransactionsEthereum } from './chains/ethereum.js';
