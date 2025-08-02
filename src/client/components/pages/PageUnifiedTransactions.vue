@@ -195,6 +195,8 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import {
   executeUnifiedTransaction,
+  executeAutoTransaction,
+  getCurrentWalletConfig,
   testTransaction,
   transactionState,
   transactionHistory,
@@ -205,12 +207,18 @@ import {
   clearTransactionHistory,
   TransactionStatus
 } from '@/client/scripts/unifiedTransactionManager.js';
-import { cryptobet } from '@/client/scripts/cryptobet.js';
+import { useGlobalStore } from '@/client/stores/global.js';
+import { storeToRefs } from 'pinia';
 
-// Reactive data
-const selectedBlockchain = ref('');
-const selectedWallet = ref('');
+// Global store integration
+const store = useGlobalStore();
+const { is_authenticated } = storeToRefs(store);
+
+// Reactive data - amount is the only user input needed
 const amount = ref(0);
+
+// Get auto-selected wallet configuration from global store
+const walletConfig = computed(() => getCurrentWalletConfig());
 
 // Computed properties
 const supportedBlockchains = computed(() => getSupportedBlockchains());
@@ -218,9 +226,10 @@ const supportedBlockchains = computed(() => getSupportedBlockchains());
 const logs = computed(() => transactionLogger.getLogs());
 
 const canExecuteTransaction = computed(() => {
-  return selectedBlockchain.value && 
-         selectedWallet.value && 
-         amount.value > 0 && 
+  return walletConfig.value.blockchain &&
+         walletConfig.value.walletType &&
+         walletConfig.value.isAuthenticated &&
+         amount.value > 0 &&
          !transactionState.isTransactionInProgress;
 });
 
