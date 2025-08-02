@@ -247,7 +247,7 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
       status: TransactionStatus.SUCCESS
     });
 
-    // Perform server-side verification
+    // Perform server-side verification (critical for security)
     try {
       const verificationResult = await verifyTransactionOnServer(transactionHash, blockchain, amount);
       if (verificationResult.success) {
@@ -256,14 +256,23 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
           walletType,
           amount,
           transactionHash,
-          message: `Server verification successful`,
+          message: `Server verification successful - backend callback triggered`,
           status: TransactionStatus.SUCCESS
         });
+
+        // The server has now processed the transaction and triggered all callbacks
+        console.log('[UNIFIED_TRANSACTION] Transaction verified and processed server-side');
       } else {
         console.warn('[UNIFIED_TRANSACTION] Server verification failed:', verificationResult.error);
+        // Even if local transaction succeeded, server verification failed
+        transactionState.currentStatus = TransactionStatus.FAILED;
+        transactionState.error = `Server verification failed: ${verificationResult.error}`;
       }
     } catch (verificationError) {
       console.error('[UNIFIED_TRANSACTION] Server verification error:', verificationError);
+      // Critical: Server verification is required for transaction validity
+      transactionState.currentStatus = TransactionStatus.FAILED;
+      transactionState.error = `Server verification error: ${verificationError.message}`;
     }
 
     // Execute callback if provided
