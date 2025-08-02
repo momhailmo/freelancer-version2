@@ -5,43 +5,36 @@
       <p class="subtitle">Send transactions across all supported blockchains</p>
     </div>
 
-    <!-- Transaction Form -->
-    <div class="transaction-form">
-      <div class="form-section">
-        <label class="form-label">Select Blockchain</label>
-        <select 
-          v-model="selectedBlockchain" 
-          class="form-select"
-          :disabled="transactionState.isTransactionInProgress"
-        >
-          <option value="">Choose blockchain...</option>
-          <option 
-            v-for="blockchain in supportedBlockchains" 
-            :key="blockchain" 
-            :value="blockchain"
-          >
-            {{ getBlockchainInfo(blockchain)?.name || blockchain }} ({{ getBlockchainInfo(blockchain)?.symbol || blockchain }})
-          </option>
-        </select>
+    <!-- Auto-Selected Configuration Display -->
+    <div class="auto-config-display">
+      <div class="config-info">
+        <h3>Auto-Selected Configuration</h3>
+        <p class="config-note">Using pre-configured blockchain and wallet from your profile</p>
       </div>
 
-      <div class="form-section" v-if="selectedBlockchain">
-        <label class="form-label">Select Wallet</label>
-        <select 
-          v-model="selectedWallet" 
-          class="form-select"
-          :disabled="transactionState.isTransactionInProgress"
-        >
-          <option value="">Choose wallet...</option>
-          <option 
-            v-for="wallet in getAvailableWallets(selectedBlockchain)" 
-            :key="wallet" 
-            :value="wallet"
-          >
-            {{ formatWalletName(wallet) }}
-          </option>
-        </select>
+      <div class="config-details">
+        <div class="config-item">
+          <span class="config-label">Blockchain:</span>
+          <span class="config-value">
+            {{ getBlockchainInfo(walletConfig.blockchain)?.name || walletConfig.blockchain }}
+            ({{ getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain }})
+          </span>
+        </div>
+
+        <div class="config-item">
+          <span class="config-label">Wallet:</span>
+          <span class="config-value">{{ formatWalletName(walletConfig.walletType) }}</span>
+        </div>
+
+        <div class="config-item" v-if="walletConfig.walletAddress">
+          <span class="config-label">Address:</span>
+          <span class="config-value">{{ formatAddress(walletConfig.walletAddress) }}</span>
+        </div>
       </div>
+    </div>
+
+    <!-- Transaction Form -->
+    <div class="transaction-form">
 
       <div class="form-section" v-if="selectedWallet">
         <label class="form-label">
