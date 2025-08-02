@@ -114,12 +114,12 @@ router.get('/verification-status/:transactionHash', verificationLimiter, authent
   try {
     const { transactionHash } = req.params;
     const verificationKey = `tx_verify_${transactionHash}`;
-    
+
     const verificationData = await redisClient.get(verificationKey);
-    
+
     if (!verificationData) {
-      return res.status(404).json({ 
-        error: 'Transaction verification not found' 
+      return res.status(404).json({
+        error: 'Transaction verification not found'
       });
     }
 
@@ -128,8 +128,93 @@ router.get('/verification-status/:transactionHash', verificationLimiter, authent
 
   } catch (error) {
     console.error('[TX_VERIFY] Error retrieving verification status:', error);
-    res.status(500).json({ 
-      error: 'Internal server error retrieving verification status' 
+    res.status(500).json({
+      error: 'Internal server error retrieving verification status'
+    });
+  }
+});
+
+/**
+ * Get user transaction history (server-side managed)
+ */
+router.get('/user-history', verificationLimiter, authenticateJWT, async (req, res) => {
+  try {
+    const userAddress = req.user?.address;
+    const historyKey = `tx_history_${userAddress}`;
+
+    const historyData = await redisClient.get(historyKey);
+    const history = historyData ? JSON.parse(historyData) : [];
+
+    res.json({
+      success: true,
+      userAddress,
+      transactionCount: history.length,
+      transactions: history
+    });
+
+  } catch (error) {
+    console.error('[TX_VERIFY] Error retrieving user transaction history:', error);
+    res.status(500).json({
+      error: 'Internal server error retrieving transaction history'
+    });
+  }
+});
+
+/**
+ * Get user balance and stats (server-side managed)
+ */
+router.get('/user-balance', verificationLimiter, authenticateJWT, async (req, res) => {
+  try {
+    const userAddress = req.user?.address;
+    const balanceKey = `user_balance_${userAddress}`;
+    const statsKey = `user_stats_${userAddress}`;
+
+    const [balanceData, statsData] = await Promise.all([
+      redisClient.get(balanceKey),
+      redisClient.get(statsKey)
+    ]);
+
+    const balance = balanceData ? JSON.parse(balanceData) : {};
+    const stats = statsData ? JSON.parse(statsData) : { totalTransactions: 0, totalAmount: {} };
+
+    res.json({
+      success: true,
+      userAddress,
+      balance,
+      stats
+    });
+
+  } catch (error) {
+    console.error('[TX_VERIFY] Error retrieving user balance:', error);
+    res.status(500).json({
+      error: 'Internal server error retrieving user balance'
+    });
+  }
+});
+
+/**
+ * Get user notifications (server-side managed)
+ */
+router.get('/user-notifications', verificationLimiter, authenticateJWT, async (req, res) => {
+  try {
+    const userAddress = req.user?.address;
+    const notificationKey = `user_notifications_${userAddress}`;
+
+    const notificationData = await redisClient.get(notificationKey);
+    const notifications = notificationData ? JSON.parse(notificationData) : [];
+
+    res.json({
+      success: true,
+      userAddress,
+      notificationCount: notifications.length,
+      unreadCount: notifications.filter(n => !n.read).length,
+      notifications
+    });
+
+  } catch (error) {
+    console.error('[TX_VERIFY] Error retrieving user notifications:', error);
+    res.status(500).json({
+      error: 'Internal server error retrieving user notifications'
     });
   }
 });
