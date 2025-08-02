@@ -24,8 +24,8 @@ const pool = new Pool({
 let redisClient;
 let redisConnected = false;
 
-// Check if Redis should be used in development
-const useRedis = process.env.NODE_ENV === 'production' || process.env.USE_REDIS === 'true';
+// Redis is required for both development and production
+const useRedis = true;
 
 if (useRedis) {
     redisClient = redis.createClient({
