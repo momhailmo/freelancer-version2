@@ -9,8 +9,7 @@ let redisClient;
 let redisConnected = false;
 
 // Redis is required for both development and production
-// Temporarily disabled to avoid runtime errors
-const useRedis = false;
+const useRedis = true;
 
 if (useRedis) {
   redisClient = redis.createClient({
