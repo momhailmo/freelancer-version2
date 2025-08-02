@@ -22,6 +22,11 @@ const CreateProtectedRoutes = (redisClient) => {
 
   router.use(authenticateJWT);
 
+  router.get('/test', (req, res) => {
+    // Simple endpoint to test token validity without rate limiting
+    res.json({ success: true, valid: true, address: req.user.address });
+  });
+
   router.get('/profile', authLimiter, (req, res) => {
     res.json({ success: true, user: req.user, address: req.user.address });
   });
