@@ -28,6 +28,7 @@ import createAuthRouterAptos from './routes/authAptos.js';
 import createAuthRouterSolana from './routes/authSolana.js';
 import CreateProtectedRoutes from './routes/protected.js';
 import CreateUnprotectedRoutes from './routes/unprotected.js';
+import createTransactionVerificationRoutes from './routes/transactionVerification.js';
 
 import './scripts/data.js'; // Import the data module to initialize the database connection
 import './scripts/websocketServer.js'; // Import the WebSocket server
