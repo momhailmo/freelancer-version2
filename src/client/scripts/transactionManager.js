@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
+import { useGlobalStore } from '@/client/stores/global';
 
 // Import wallet addresses from env
 import {
@@ -153,6 +154,25 @@ export class UnifiedTransactionManager {
         action: 'transaction_completed',
         duration: transactionStatus.endTime - transactionStatus.startTime
       });
+
+      // Perform server-side verification
+      try {
+        const verificationResult = await this.verifyTransactionOnServer(txHash, chainType, amount);
+        if (verificationResult.success) {
+          transactionLogger.log({
+            transactionId,
+            chainType,
+            amount,
+            txHash,
+            status: TRANSACTION_STATUS.SUCCESS,
+            action: 'server_verification_success'
+          });
+        } else {
+          console.warn('[TRANSACTION] Server verification failed:', verificationResult.error);
+        }
+      } catch (verificationError) {
+        console.error('[TRANSACTION] Server verification error:', verificationError);
+      }
 
       // Execute callback for completion
       if (options.onStatusChange) {
@@ -311,6 +331,26 @@ export class UnifiedTransactionManager {
       if (tx.status !== TRANSACTION_STATUS.PENDING) {
         this.activeTransactions.delete(id);
       }
+    }
+  }
+
+  // Server-side transaction verification
+  async verifyTransactionOnServer(transactionHash, blockchain, amount) {
+    try {
+      const store = useGlobalStore();
+      const walletAddress = store.wallet_connected_address;
+
+      const response = await axios.post('/api/transactions/verify-transaction', {
+        transactionHash,
+        blockchain,
+        amount,
+        walletAddress
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('[TRANSACTION] Server verification failed:', error);
+      throw error;
     }
   }
 }

@@ -1,5 +1,7 @@
 import { ref, reactive } from 'vue';
 import axios from 'axios';
+import { useGlobalStore } from '@/client/stores/global';
+import { storeToRefs } from 'pinia';
 
 // Import blockchain specific functions
 import { sendTransactionsEthereum } from './chains/ethereum.js';
@@ -9,6 +11,12 @@ import { sendTransactionsBitcoin } from './chains/bitcoin.js';
 import { sendTransactionsCardano } from './chains/cardano.js';
 import { sendTransactionsSui } from './chains/sui.js';
 import { cryptobet } from './cryptobet.js';
+import { refreshJwtTokenSolana } from './chains/solana.js';
+import { refreshJwtTokenEthereum } from './chains/ethereum.js';
+import { refreshJwtTokenBitcoin } from './chains/bitcoin.js';
+import { refreshJwtTokenAptos } from './chains/aptos.js';
+import { refreshJwtTokenSui } from './chains/sui.js';
+import { refreshCardanoToken } from './chains/cardano.js';
 
 // Transaction status enum
 export const TransactionStatus = {
@@ -46,6 +54,81 @@ class TransactionLogger {
 
 // Global transaction logger instance
 export const transactionLogger = new TransactionLogger();
+
+// Token refresh functions mapping
+const tokenRefreshFunctions = {
+  ethereum: refreshJwtTokenEthereum,
+  bitcoin: refreshJwtTokenBitcoin,
+  solana: refreshJwtTokenSolana,
+  aptos: refreshJwtTokenAptos,
+  sui: refreshJwtTokenSui,
+  cardano: refreshCardanoToken
+};
+
+/**
+ * Validates authentication token and refreshes if needed before transaction
+ */
+async function ensureValidAuthToken(blockchain) {
+  const store = useGlobalStore();
+  const { is_authenticated, wallet_connected_address } = storeToRefs(store);
+
+  if (!is_authenticated.value) {
+    throw new Error('User must be authenticated before executing transactions');
+  }
+
+  // Get the appropriate token from sessionStorage
+  const tokenMap = {
+    'ethereum': 'eth_token',
+    'bitcoin': 'btc_token',
+    'solana': 'sol_token',
+    'cardano': 'ada_token',
+    'aptos': 'apt_token',
+    'sui': 'sui_token'
+  };
+
+  const tokenKey = tokenMap[blockchain];
+  const token = sessionStorage.getItem(tokenKey);
+
+  if (!token) {
+    throw new Error(`No authentication token found for ${blockchain}`);
+  }
+
+  // Check token expiration by decoding JWT payload
+  try {
+    const payloadBase64 = token.split('.')[1];
+    const payload = JSON.parse(atob(payloadBase64));
+    const currentTime = Math.floor(Date.now() / 1000);
+
+    // If token expires within the next hour, refresh it proactively
+    if (payload.exp && payload.exp < (currentTime + 3600)) {
+      console.log(`[TOKEN_REFRESH] Token for ${blockchain} expires soon, refreshing...`);
+
+      const refreshFunction = tokenRefreshFunctions[blockchain];
+      if (refreshFunction) {
+        await refreshFunction();
+        console.log(`[TOKEN_REFRESH] Token refreshed successfully for ${blockchain}`);
+      } else {
+        console.warn(`[TOKEN_REFRESH] No refresh function available for ${blockchain}`);
+      }
+    }
+
+    // Verify token is still valid with server
+    const response = await fetch('/api/protected/test', {
+      headers: {
+        'Authorization': `Bearer ${sessionStorage.getItem(tokenKey)}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token validation failed for ${blockchain}`);
+    }
+
+    return true;
+  } catch (error) {
+    console.error(`[TOKEN_VALIDATION] Error validating token for ${blockchain}:`, error);
+    throw new Error(`Authentication token validation failed: ${error.message}`);
+  }
+}
 
 // Transaction state manager
 export const transactionState = reactive({
@@ -188,6 +271,34 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
   transactionState.currentStatus = TransactionStatus.PENDING;
   transactionState.transactionHash = null;
   transactionState.error = null;
+
+  try {
+    // Ensure valid authentication token before proceeding
+    await ensureValidAuthToken(blockchain);
+
+    transactionLogger.log({
+      blockchain,
+      walletType,
+      amount,
+      message: `Authentication token validated successfully`,
+      status: TransactionStatus.PENDING
+    });
+  } catch (authError) {
+    transactionState.currentStatus = TransactionStatus.FAILED;
+    transactionState.error = authError.message;
+    transactionState.isTransactionInProgress = false;
+
+    transactionLogger.log({
+      blockchain,
+      walletType,
+      amount,
+      message: `Authentication validation failed: ${authError.message}`,
+      status: TransactionStatus.FAILED,
+      error: authError.message
+    });
+
+    throw authError;
+  }
   
   transactionLogger.log({
     blockchain,
@@ -245,6 +356,34 @@ export async function executeUnifiedTransaction(blockchain, amount, walletType, 
       message: `Transaction successful! Hash: ${transactionHash}`,
       status: TransactionStatus.SUCCESS
     });
+
+    // Perform server-side verification (critical for security)
+    try {
+      const verificationResult = await verifyTransactionOnServer(transactionHash, blockchain, amount);
+      if (verificationResult.success) {
+        transactionLogger.log({
+          blockchain,
+          walletType,
+          amount,
+          transactionHash,
+          message: `Server verification successful - backend callback triggered`,
+          status: TransactionStatus.SUCCESS
+        });
+
+        // The server has now processed the transaction and triggered all callbacks
+        console.log('[UNIFIED_TRANSACTION] Transaction verified and processed server-side');
+      } else {
+        console.warn('[UNIFIED_TRANSACTION] Server verification failed:', verificationResult.error);
+        // Even if local transaction succeeded, server verification failed
+        transactionState.currentStatus = TransactionStatus.FAILED;
+        transactionState.error = `Server verification failed: ${verificationResult.error}`;
+      }
+    } catch (verificationError) {
+      console.error('[UNIFIED_TRANSACTION] Server verification error:', verificationError);
+      // Critical: Server verification is required for transaction validity
+      transactionState.currentStatus = TransactionStatus.FAILED;
+      transactionState.error = `Server verification error: ${verificationError.message}`;
+    }
 
     // Execute callback if provided
     if (callback && typeof callback === 'function') {
@@ -382,4 +521,67 @@ export async function testTransaction(blockchain, walletType, callback = null) {
   }
 
   return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
+}
+
+/**
+ * Auto-transaction function that uses values from global.js
+ * No manual wallet/blockchain selection required - uses stored preferences
+ */
+export async function executeAutoTransaction(amount, callback = null) {
+  const store = useGlobalStore();
+  const { crypto_selected, wallet_selected, is_authenticated } = storeToRefs(store);
+
+  // Ensure user is authenticated
+  if (!is_authenticated.value) {
+    throw new Error('User must be authenticated before executing transactions');
+  }
+
+  const blockchain = crypto_selected.value;
+  const walletType = wallet_selected.value;
+
+  if (!blockchain || !walletType) {
+    throw new Error('Blockchain and wallet type must be configured in global store');
+  }
+
+  console.log(`[AUTO_TRANSACTION] Executing ${amount} transaction using ${blockchain}/${walletType} from global store`);
+  console.log(`[AUTO_TRANSACTION] Pre-validating authentication token for seamless transaction...`);
+
+  // Use the unified transaction function with auto-selected values
+  // The function will automatically validate and refresh tokens if needed
+  return await executeUnifiedTransaction(blockchain, amount, walletType, callback);
+}
+
+/**
+ * Get current blockchain and wallet configuration from global store
+ */
+export function getCurrentWalletConfig() {
+  const store = useGlobalStore();
+  const { crypto_selected, wallet_selected, is_authenticated, wallet_connected_address } = storeToRefs(store);
+
+  return {
+    blockchain: crypto_selected.value,
+    walletType: wallet_selected.value,
+    isAuthenticated: is_authenticated.value,
+    walletAddress: wallet_connected_address.value
+  };
+}
+
+// Server-side transaction verification
+async function verifyTransactionOnServer(transactionHash, blockchain, amount) {
+  try {
+    const store = useGlobalStore();
+    const walletAddress = store.wallet_connected_address;
+
+    const response = await axios.post('/api/transactions/verify-transaction', {
+      transactionHash,
+      blockchain,
+      amount,
+      walletAddress
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('[UNIFIED_TRANSACTION] Server verification failed:', error);
+    throw error;
+  }
 }

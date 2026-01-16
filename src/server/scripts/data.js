@@ -24,8 +24,8 @@ const pool = new Pool({
 let redisClient;
 let redisConnected = false;
 
-// Check if Redis should be used in development
-const useRedis = process.env.NODE_ENV === 'production' || process.env.USE_REDIS === 'true';
+// Redis is required for both development and production
+const useRedis = true;
 
 if (useRedis) {
     redisClient = redis.createClient({
@@ -97,7 +97,7 @@ async function onAuthentication(walletAddress, walletSelected, cryptoSelected, a
             // Log the new session in Redis
             const sessionKey = `auth_token_${walletAddress}_${authToken}`;
             await redisClient.set(sessionKey, JSON.stringify({ walletSelected, cryptoSelected }), {
-                EX: 900 // Set expiration to 15 minutes (900 seconds)
+                EX: 86400 // Set expiration to 24 hours (86400 seconds)
             });
         } else {
             console.log('[AUTH] Redis not available, skipping session management');

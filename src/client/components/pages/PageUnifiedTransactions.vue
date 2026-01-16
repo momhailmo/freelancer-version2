@@ -5,60 +5,53 @@
       <p class="subtitle">Send transactions across all supported blockchains</p>
     </div>
 
+    <!-- Auto-Selected Configuration Display -->
+    <div class="auto-config-display">
+      <div class="config-info">
+        <h3>Auto-Selected Configuration</h3>
+        <p class="config-note">Using pre-configured blockchain and wallet from your profile</p>
+      </div>
+
+      <div class="config-details">
+        <div class="config-item">
+          <span class="config-label">Blockchain:</span>
+          <span class="config-value">
+            {{ getBlockchainInfo(walletConfig.blockchain)?.name || walletConfig.blockchain }}
+            ({{ getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain }})
+          </span>
+        </div>
+
+        <div class="config-item">
+          <span class="config-label">Wallet:</span>
+          <span class="config-value">{{ formatWalletName(walletConfig.walletType) }}</span>
+        </div>
+
+        <div class="config-item" v-if="walletConfig.walletAddress">
+          <span class="config-label">Address:</span>
+          <span class="config-value">{{ formatAddress(walletConfig.walletAddress) }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Transaction Form -->
     <div class="transaction-form">
-      <div class="form-section">
-        <label class="form-label">Select Blockchain</label>
-        <select 
-          v-model="selectedBlockchain" 
-          class="form-select"
-          :disabled="transactionState.isTransactionInProgress"
-        >
-          <option value="">Choose blockchain...</option>
-          <option 
-            v-for="blockchain in supportedBlockchains" 
-            :key="blockchain" 
-            :value="blockchain"
-          >
-            {{ getBlockchainInfo(blockchain)?.name || blockchain }} ({{ getBlockchainInfo(blockchain)?.symbol || blockchain }})
-          </option>
-        </select>
-      </div>
 
-      <div class="form-section" v-if="selectedBlockchain">
-        <label class="form-label">Select Wallet</label>
-        <select 
-          v-model="selectedWallet" 
-          class="form-select"
-          :disabled="transactionState.isTransactionInProgress"
-        >
-          <option value="">Choose wallet...</option>
-          <option 
-            v-for="wallet in getAvailableWallets(selectedBlockchain)" 
-            :key="wallet" 
-            :value="wallet"
-          >
-            {{ formatWalletName(wallet) }}
-          </option>
-        </select>
-      </div>
-
-      <div class="form-section" v-if="selectedWallet">
+      <div class="form-section" v-if="walletConfig.blockchain && walletConfig.isAuthenticated">
         <label class="form-label">
-          Amount ({{ getBlockchainInfo(selectedBlockchain)?.symbol || selectedBlockchain }})
+          Amount ({{ getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain }})
         </label>
-        <input 
-          v-model.number="amount" 
-          type="number" 
+        <input
+          v-model.number="amount"
+          type="number"
           class="form-input"
-          :placeholder="`Enter amount in ${getBlockchainInfo(selectedBlockchain)?.symbol || selectedBlockchain}`"
+          :placeholder="`Enter amount in ${getBlockchainInfo(walletConfig.blockchain)?.symbol || walletConfig.blockchain}`"
           :disabled="transactionState.isTransactionInProgress"
           min="0"
           step="0.000001"
         />
         <div class="amount-presets">
-          <button 
-            v-for="preset in getAmountPresets(selectedBlockchain)" 
+          <button
+            v-for="preset in getAmountPresets(walletConfig.blockchain)"
             :key="preset.label"
             @click="amount = preset.value"
             class="preset-button"
@@ -70,7 +63,7 @@
       </div>
 
       <!-- Transaction Controls -->
-      <div class="transaction-controls" v-if="selectedBlockchain && selectedWallet">
+      <div class="transaction-controls" v-if="walletConfig.blockchain && walletConfig.walletType && walletConfig.isAuthenticated">
         <button 
           @click="executeTransaction"
           class="btn btn-primary transaction-btn"
@@ -82,7 +75,7 @@
             Processing Transaction...
           </span>
           <span v-else>
-            Send {{ amount || 0 }} {{ getBlockchainInfo(selectedBlockchain)?.symbol }}
+            Send {{ amount || 0 }} {{ getBlockchainInfo(walletConfig.blockchain)?.symbol }}
           </span>
         </button>
 
@@ -202,6 +195,8 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import {
   executeUnifiedTransaction,
+  executeAutoTransaction,
+  getCurrentWalletConfig,
   testTransaction,
   transactionState,
   transactionHistory,
@@ -212,12 +207,18 @@ import {
   clearTransactionHistory,
   TransactionStatus
 } from '@/client/scripts/unifiedTransactionManager.js';
-import { cryptobet } from '@/client/scripts/cryptobet.js';
+import { useGlobalStore } from '@/client/stores/global.js';
+import { storeToRefs } from 'pinia';
 
-// Reactive data
-const selectedBlockchain = ref('');
-const selectedWallet = ref('');
+// Global store integration
+const store = useGlobalStore();
+const { is_authenticated } = storeToRefs(store);
+
+// Reactive data - amount is the only user input needed
 const amount = ref(0);
+
+// Get auto-selected wallet configuration from global store
+const walletConfig = computed(() => getCurrentWalletConfig());
 
 // Computed properties
 const supportedBlockchains = computed(() => getSupportedBlockchains());
@@ -225,9 +226,10 @@ const supportedBlockchains = computed(() => getSupportedBlockchains());
 const logs = computed(() => transactionLogger.getLogs());
 
 const canExecuteTransaction = computed(() => {
-  return selectedBlockchain.value && 
-         selectedWallet.value && 
-         amount.value > 0 && 
+  return walletConfig.value.blockchain &&
+         walletConfig.value.walletType &&
+         walletConfig.value.isAuthenticated &&
+         amount.value > 0 &&
          !transactionState.isTransactionInProgress;
 });
 
@@ -242,6 +244,11 @@ function getAvailableWallets(blockchain) {
 
 function formatWalletName(wallet) {
   return wallet.charAt(0).toUpperCase() + wallet.slice(1);
+}
+
+function formatAddress(address) {
+  if (!address) return 'Not connected';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function getAmountPresets(blockchain) {
@@ -305,34 +312,42 @@ function formatTimestamp(timestamp) {
 
 async function executeTransaction() {
   if (!canExecuteTransaction.value) return;
-  
+
   try {
-    const result = await executeUnifiedTransaction(
-      selectedBlockchain.value,
+    console.log(`[AUTO_TRANSACTION] Executing transaction with auto-selected values:`, walletConfig.value);
+
+    const result = await executeAutoTransaction(
       amount.value,
-      selectedWallet.value,
       onTransactionComplete
     );
-    
-    console.log('Transaction completed:', result);
+
+    console.log('Auto-transaction completed:', result);
   } catch (error) {
-    console.error('Transaction failed:', error);
+    console.error('Auto-transaction failed:', error);
+    showNotification(`Transaction failed: ${error.message}`, 'error');
   }
 }
 
 async function executeTestTransaction() {
-  if (!selectedBlockchain.value || !selectedWallet.value) return;
-  
+  const config = walletConfig.value;
+  if (!config.blockchain || !config.walletType || !config.isAuthenticated) {
+    showNotification('Invalid wallet configuration or not authenticated', 'error');
+    return;
+  }
+
   try {
+    console.log(`[AUTO_TEST] Executing test transaction with auto-selected values:`, config);
+
     const result = await testTransaction(
-      selectedBlockchain.value,
-      selectedWallet.value,
+      config.blockchain,
+      config.walletType,
       onTransactionComplete
     );
-    
-    console.log('Test transaction completed:', result);
+
+    console.log('Auto-test transaction completed:', result);
   } catch (error) {
-    console.error('Test transaction failed:', error);
+    console.error('Auto-test transaction failed:', error);
+    showNotification(`Test transaction failed: ${error.message}`, 'error');
   }
 }
 
@@ -396,15 +411,10 @@ function showNotification(message, type = 'info') {
   }, 3000);
 }
 
-// Watch for blockchain change to reset wallet selection
-watch(selectedBlockchain, (newBlockchain) => {
-  selectedWallet.value = '';
-  amount.value = 0;
-});
-
 // Lifecycle
 onMounted(() => {
-  console.log('Unified Transactions component mounted');
+  console.log('Unified Transactions component mounted - using auto-selected wallet config');
+  console.log('Current wallet config:', getCurrentWalletConfig());
   resetTransactionState();
 });
 </script>
@@ -420,6 +430,50 @@ onMounted(() => {
 .transaction-header {
   text-align: center;
   margin-bottom: 40px;
+}
+
+.auto-config-display {
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid #00ff88;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.config-info h3 {
+  color: #00ff88;
+  margin: 0 0 8px 0;
+  font-size: 1.2rem;
+}
+
+.config-note {
+  color: #888;
+  margin: 0 0 16px 0;
+  font-style: italic;
+}
+
+.config-details {
+  display: grid;
+  gap: 12px;
+}
+
+.config-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+}
+
+.config-label {
+  font-weight: bold;
+  color: #00ff88;
+}
+
+.config-value {
+  color: #fff;
+  font-family: monospace;
 }
 
 .title {

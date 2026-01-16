@@ -28,6 +28,7 @@ import createAuthRouterAptos from './routes/authAptos.js';
 import createAuthRouterSolana from './routes/authSolana.js';
 import CreateProtectedRoutes from './routes/protected.js';
 import CreateUnprotectedRoutes from './routes/unprotected.js';
+import createTransactionVerificationRoutes from './routes/transactionVerification.js';
 
 import './scripts/data.js'; // Import the data module to initialize the database connection
 import './scripts/websocketServer.js'; // Import the WebSocket server
@@ -80,8 +81,8 @@ async function startServer() {
     //     next();
     // });
     // d:/Work/2025/CyberBet.Games/source/database-update/database_update/databases/mongodb/data
-    // Check if Redis should be used in development
-    const useRedis = process.env.NODE_ENV === 'production' || process.env.USE_REDIS === 'true';
+    // Redis is required for both development and production
+    const useRedis = true;
 
     let redisConnected = false;
     let effectiveRedisClient;
@@ -146,7 +147,9 @@ async function startServer() {
     app.use('/api', authRoutesSolana);
 
     const protectedRoutes = CreateProtectedRoutes(effectiveRedisClient);
+    const transactionVerificationRoutes = createTransactionVerificationRoutes();
     app.use('/api', protectedRoutes);
+    app.use('/api/transactions', transactionVerificationRoutes);
 
     // Serve static files from the dist folder
     const distPath = path.resolve(process.cwd(), 'dist');

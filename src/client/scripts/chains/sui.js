@@ -9,7 +9,7 @@ import { WalletStandardAdapterProvider } from '@mysten/wallet-adapter-all-wallet
 
 ////////////////////////////////////////////////////////////////////////
 
-setInterval(refreshJwtTokenSui, 14 * 60 * 1000); // every 14 minutes
+setInterval(refreshJwtTokenSui, 23 * 60 * 60 * 1000); // every 23 hours
 
 ////////////////////////////////////////////////////////////////////////
 

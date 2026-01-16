@@ -8,8 +8,8 @@ dotenv.config();
 let redisClient;
 let redisConnected = false;
 
-// Check if Redis should be used in development
-const useRedis = process.env.NODE_ENV === 'production' || process.env.USE_REDIS === 'true';
+// Redis is required for both development and production
+const useRedis = true;
 
 if (useRedis) {
   redisClient = redis.createClient({
@@ -61,7 +61,7 @@ async function generateJWT(address) {
     const token = await new SignJWT({ address })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('15min')
+      .setExpirationTime('24h')
       .sign(JWT_SECRET);
     return token;
   } catch (err) {
@@ -175,7 +175,7 @@ async function refreshJWT(refreshToken) {
     const newToken = await new SignJWT({ address: payload.address })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('15min')
+      .setExpirationTime('24h')
       .sign(JWT_SECRET);
     return newToken;
   } catch (err) {

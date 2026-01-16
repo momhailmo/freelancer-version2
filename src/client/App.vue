@@ -49,6 +49,7 @@ const BackgroundAndButtons = computed(() => defineAsyncComponent(() => import(`.
 
 import { useGlobalStore } from "@/client/stores/global";
 import { storeToRefs } from "pinia";
+import { initializeAutoConnect } from "./scripts/autoWalletConnect.js";
 
 ////////////////////////////////////////////////////////////////////////////////////
 
@@ -59,9 +60,10 @@ import { storeToRefs } from "pinia";
   };
 
 onMounted(() => {
-  
-  nextTick(() => {
 
+  nextTick(async () => {
+    // Initialize auto-connect instead of showing wallet selection
+    await initializeAutoConnect();
   });
 
   onBeforeUnmount(() => {
